@@ -1,0 +1,104 @@
+#developpement
+version: "3.7"
+services:
+    zlv-nginx:
+        image: nginx
+        ports:
+            - 80:80/tcp
+            - 443:443/tcp
+        volumes:
+            - ./nginx.conf:/etc/nginx/nginx.conf:ro
+        
+        depends_on: 
+            - zlv-api
+            - zlv-front
+        networks:
+            zlv:
+                aliases:
+                    - nginx
+
+    zlv-redis:
+        image: bitnami/redis:latest
+        restart: always
+        volumes:
+           - zlv-redisdata:/bitnami/redis/data
+        ports:
+            - "0.0.0.0:6379:6379"
+        environment:
+            ALLOW_EMPTY_PASSWORD: "no"
+            REDIS_PASSWORD: ${REDIS_PASSWORD}
+        networks:
+            zlv:
+                aliases:
+                    - redis
+
+                
+    zlv-mongo:
+        image: mongo:4.0.3
+        restart: always
+        volumes:
+            - zlv-mongodata:/data/db
+            - ./mongodb.js:/docker-entrypoint-initdb.d/mongo-init.js
+        ports:
+            - 0.0.0.0:2717:27017
+        environment:
+            MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+            MONGO_INITDB_USERNAME: ${MONGO_INITDB_USERNAME}
+            MONGO_INITDB_PASSWORD: ${MONGO_INITDB_PASSWORD}
+        networks:
+            zlv:
+                aliases:
+                    - mongo
+                    
+    zlv-front:
+        image: node:12.20.1-buster
+        restart: always
+        command: > 
+            /bin/bash -c "
+            cd /app 
+            && npm install
+            && npm i @vue/cli-service --save 
+            && npm run serve -- --port 80"
+        volumes:
+            - "../front:/app"
+        ports:
+            - 6082:80
+        tty: true
+        networks:
+            zlv:
+                aliases:
+                    - zlv-front
+
+    zlv-api:
+        image: node:latest
+        restart: always
+        command: >
+            /bin/bash -c "
+            cd /app 
+            && npm install
+            && npm start"
+        links:
+            - "zlv-front:zlv-front"
+        volumes:
+            - "../api:/app"
+        ports:
+            - 0.0.0.0:6083:80
+        tty: true
+        networks:
+            zlv:
+                aliases:
+                    - zlv-api
+
+
+networks:
+    zlv:
+        driver: bridge
+        driver_opts:
+            com.docker.network.bridge.name: br-zlv
+volumes:
+    zlv-mongodata:
+        driver: local
+    zlv-redisdata:
+        driver: local
